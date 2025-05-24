@@ -111,6 +111,9 @@ function App() {
 
   return (
     <div style={{ padding: 32 }}>
+      <div style={{ marginBottom: 16, fontSize: 18, color: '#1976d2', fontWeight: 'bold' }}>
+        dear dad i hope this helps you work faster love max
+      </div>
       <h2>Invoice Brand Splitter</h2>
       <div>
         <label><b>Upload Invoice CSV:</b></label>
