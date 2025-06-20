@@ -43,25 +43,69 @@ function App() {
   };
 
   const process = () => {
+    console.log('Processing started...');
+    console.log('Invoice rows:', invoiceRows);
+    console.log('Total cost:', totalCost);
+    
     const brandQuantities = {};
     let totalQuantity = 0;
 
     invoiceRows.forEach(row => {
-      const description = row['PRODUCT DESCRIPTION']?.trim() || '';
-      const quantity = parseInt(row['QUANTITY'] || '0', 10);
+      let description = '';
+      let quantity = 0;
+      
+      // Check if this is a product inventory CSV (has Product Description and Quantity columns)
+      if (row['Product Description'] || row['PRODUCT DESCRIPTION']) {
+        description = (row['Product Description'] || row['PRODUCT DESCRIPTION'] || '').trim();
+        quantity = parseInt(row['Quantity'] || row['QUANTITY'] || '0', 10);
+      }
+      // Check if this is a shipping invoice CSV (has Container # column)
+      else if (row['Container #']) {
+        description = row['Container #']?.trim() || row['Vessel']?.trim() || '';
+        quantity = 1; // Each row represents one shipment/container
+      }
+      // Fallback: try to find any description-like column
+      else {
+        const descKeys = Object.keys(row).filter(key => 
+          key.toLowerCase().includes('description') || 
+          key.toLowerCase().includes('product') ||
+          key.toLowerCase().includes('container')
+        );
+        const qtyKeys = Object.keys(row).filter(key => 
+          key.toLowerCase().includes('quantity') || 
+          key.toLowerCase().includes('qty')
+        );
+        
+        description = descKeys.length > 0 ? (row[descKeys[0]] || '').trim() : '';
+        quantity = qtyKeys.length > 0 ? parseInt(row[qtyKeys[0]] || '0', 10) : 1;
+      }
+      
       const brandCode = extractBrandCode(description);
+      
+      console.log(`Description: "${description}" -> Brand Code: "${brandCode}" -> Quantity: ${quantity}`);
+      
       if (!brandQuantities[brandCode]) brandQuantities[brandCode] = 0;
       brandQuantities[brandCode] += quantity;
       totalQuantity += quantity;
     });
 
+    console.log('Brand quantities:', brandQuantities);
+    console.log('Total quantity:', totalQuantity);
+
     const cost = parseFloat(totalCost);
-    if (!cost || totalQuantity === 0) return;
+    if (!cost || totalQuantity === 0) {
+      console.error('Processing failed:', { cost, totalQuantity });
+      alert(`Processing failed! Cost: ${cost}, Total Quantity: ${totalQuantity}`);
+      return;
+    }
 
     const rows = Object.entries(brandQuantities).map(([brandCode, qty]) => {
       const percent = qty / totalQuantity;
       const netAmount = +(percent * cost).toFixed(2);
       const costCtr = `${COST_CTR_PREFIX}${brandCode}${COST_CTR_SUFFIX}`;
+      
+      console.log(`Brand: ${brandCode}, Qty: ${qty}, Percent: ${percent}, Net Amount: ${netAmount}, Cost Center: ${costCtr}`);
+      
       return {
         'G/L Account': GL_ACCOUNT,
         'Net Amount': netAmount,
@@ -69,6 +113,8 @@ function App() {
         'Cost Ctr': costCtr,
       };
     });
+    
+    console.log('Output rows:', rows);
     setOutputRows(rows);
   };
 
